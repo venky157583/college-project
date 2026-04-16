@@ -1,26 +1,18 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const Database = require('better-sqlite3');
 
 const app = express();
+
+// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// DB
-const db = new Database('./database.db');
+// Temporary storage (demo purpose)
+let users = [];
 
-// Create table
-db.prepare(`
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  username TEXT UNIQUE,
-  password TEXT
-)
-`).run();
-
-// SIGNUP
+// SIGNUP API
 app.post('/api/signup', (req, res) => {
     const { user, pass } = req.body;
 
@@ -28,42 +20,36 @@ app.post('/api/signup', (req, res) => {
         return res.status(400).json({ error: "Missing fields" });
     }
 
-    try {
-        db.prepare("INSERT INTO users (username, password) VALUES (?, ?)")
-          .run(user, pass);
-        res.json({ success: true });
-    } catch {
-        res.status(400).json({ error: "Username already exists" });
+    // Check duplicate username
+    const exists = users.find(u => u.user === user);
+    if (exists) {
+        return res.status(400).json({ error: "Username already exists" });
     }
+
+    users.push({ user, pass });
+
+    res.json({ success: true });
 });
 
-// LOGIN
+// LOGIN API
 app.post('/api/login', (req, res) => {
     const { user, pass } = req.body;
 
-    const row = db.prepare(
-        "SELECT * FROM users WHERE username=? AND password=?"
-    ).get(user, pass);
+    const found = users.find(u => u.user === user && u.pass === pass);
 
-    if (row) {
+    if (found) {
         res.json({ success: true });
     } else {
         res.status(401).json({ error: "Invalid Login" });
     }
 });
 
-// VIEW USERS
-app.get('/api/users', (req, res) => {
-    const rows = db.prepare("SELECT * FROM users").all();
-    res.json(rows);
-});
-
-// ROOT FIX
+// ROOT (open HTML page)
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'login support.html'));
 });
 
-// PORT FIX
+// PORT (Render compatible)
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {
