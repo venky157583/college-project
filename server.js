@@ -1,29 +1,24 @@
 const express = require('express');
 const cors = require('cors');
-const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const Database = require('better-sqlite3');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-// Serve frontend
 app.use(express.static(__dirname));
 
-// DB connect
-const db = new sqlite3.Database('./database.db', (err) => {
-    if (err) console.log(err);
-    else console.log("SQLite Connected");
-});
+// DB
+const db = new Database('./database.db');
 
 // Create table
-db.run(`
+db.prepare(`
 CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE,
-    password TEXT
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT UNIQUE,
+  password TEXT
 )
-`);
+`).run();
 
 // SIGNUP
 app.post('/api/signup', (req, res) => {
@@ -33,44 +28,42 @@ app.post('/api/signup', (req, res) => {
         return res.status(400).json({ error: "Missing fields" });
     }
 
-    const sql = `INSERT INTO users (username, password) VALUES (?, ?)`;
-
-    db.run(sql, [user, pass], function(err){
-        if (err) {
-            return res.status(400).json({ error: "Username already exists" });
-        }
+    try {
+        db.prepare("INSERT INTO users (username, password) VALUES (?, ?)")
+          .run(user, pass);
         res.json({ success: true });
-    });
+    } catch {
+        res.status(400).json({ error: "Username already exists" });
+    }
 });
 
 // LOGIN
 app.post('/api/login', (req, res) => {
     const { user, pass } = req.body;
 
-    const sql = `SELECT * FROM users WHERE username=? AND password=?`;
+    const row = db.prepare(
+        "SELECT * FROM users WHERE username=? AND password=?"
+    ).get(user, pass);
 
-    db.get(sql, [user, pass], (err, row) => {
-        if (row) {
-            res.json({ success: true });
-        } else {
-            res.status(401).json({ error: "Invalid Login" });
-        }
-    });
+    if (row) {
+        res.json({ success: true });
+    } else {
+        res.status(401).json({ error: "Invalid Login" });
+    }
 });
 
 // VIEW USERS
 app.get('/api/users', (req, res) => {
-    db.all(`SELECT * FROM users`, [], (err, rows) => {
-        res.json(rows);
-    });
+    const rows = db.prepare("SELECT * FROM users").all();
+    res.json(rows);
 });
 
-// ROOT FIX (IMPORTANT)
+// ROOT FIX
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'login support.html'));
 });
 
-// PORT FIX (Render ready)
+// PORT FIX
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {
