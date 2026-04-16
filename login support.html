@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Smart Vehicle System</title>
+
+<style>
+body {
+  margin:0;
+  font-family:'Segoe UI';
+  background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+  color:white;
+}
+
+#loginPage, #signupPage{
+  text-align:center;
+  margin-top:120px;
+}
+#loginPage input, #signupPage input{
+  padding:10px;
+  margin:10px;
+  width:220px;
+}
+
+.loginBtn{ background:#3498db; }
+.signupBtn{ background:#9b59b6; }
+.createBtn{ background:#2ecc71; }
+.backBtn{ background:#e67e22; }
+
+.header {
+  text-align:center;
+  padding:20px;
+  font-size:30px;
+  font-weight:bold;
+}
+
+.controls { text-align:center; }
+
+button {
+  padding:12px 18px;
+  margin:5px;
+  border:none;
+  border-radius:10px;
+  color:white;
+  cursor:pointer;
+}
+
+.add{background:#2ecc71;}
+.remove{background:#e74c3c;}
+.lock{background:#f39c12;}
+.export{background:#3498db;}
+.logout{background:black;}
+
+.saveBtn{ background:#2ecc71; }
+.cancelBtn{ background:#e74c3c; }
+
+.container {
+  display:flex;
+  justify-content:space-around;
+  margin-top:20px;
+}
+
+.card {
+  background:white;
+  color:black;
+  width:30%;
+  padding:15px;
+  border-radius:12px;
+}
+
+.log {
+  height:260px;
+  overflow:auto;
+}
+
+.stolen {
+  background:red;
+  color:white;
+  font-weight:bold;
+}
+
+#alertBox{
+  position:fixed;
+  top:20px;
+  left:50%;
+  transform:translateX(-50%);
+  background:rgba(0,0,0,0.8);
+  backdrop-filter: blur(10px);
+  padding:15px 30px;
+  border-radius:12px;
+  display:none;
+  z-index:9999;
+}
+
+#modal{
+  position:fixed;
+  top:50%; left:50%;
+  transform:translate(-50%,-50%);
+  background:white;
+  color:black;
+  padding:20px;
+  border-radius:10px;
+  display:none;
+}
+
+input, select{
+  padding:8px;
+  margin:5px;
+  width:200px;
+}
+</style>
+
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="loginPage">
+  <h2>🔐 Login</h2>
+  <input id="username" placeholder="Username"><br>
+  <input id="password" type="password" placeholder="Password"><br>
+  <button class="loginBtn" onclick="login()">Login</button><br><br>
+  <button class="signupBtn" onclick="openSignup()">Sign Up</button>
+</div>
+
+<!-- SIGNUP -->
+<div id="signupPage" style="display:none;">
+  <h2>📝 Sign Up</h2>
+  <input id="newUser" placeholder="Username (letters only)"><br>
+  <input id="newPass" type="password" placeholder="Password (letters + numbers)"><br>
+  <button class="createBtn" onclick="signup()">Create Account</button><br><br>
+  <button class="backBtn" onclick="backToLogin()">Back to Login</button>
+</div>
+
+<div id="alertBox"></div>
+
+<!-- MAIN -->
+<div id="mainApp" style="display:none;">
+<div class="header">🚗 Smart Vehicle Theft Detection System</div>
+
+<div class="controls">
+<button class="add" onclick="openModal('add')">Add Vehicle</button>
+<button class="remove" onclick="openModal('remove')">Remove Vehicle</button>
+<button class="lock" onclick="openModal('lock')">Stolen Vehicle</button>
+<button class="export" onclick="exportExcel()">Export</button>
+<button class="logout" onclick="logout()">Logout</button>
+</div>
+
+<div class="container">
+<div class="card"><h3>Location 1</h3><div id="Location1" class="log"></div></div>
+<div class="card"><h3>Location 2</h3><div id="Location2" class="log"></div></div>
+<div class="card"><h3>Location 3</h3><div id="Location3" class="log"></div></div>
+</div>
+
+<div class="container">
+<div class="card">
+  <h3>Registered Vehicles</h3>
+  <div id="vehicleList" class="log"></div>
+</div>
+</div>
+
+<div id="modal">
+<h3 id="modalTitle"></h3>
+
+<select id="vehicleType">
+<option value="">Select Vehicle Type</option>
+<option>Bike</option>
+<option>Car</option>
+<option>Bus</option>
+<option>Lorry</option>
+<option>Truck</option>
+<option>Auto</option>
+</select>
+
+<input id="cardId" placeholder="Scan RFID Card..." readonly>
+
+<br>
+
+<button class="saveBtn" onclick="saveData()">Save</button>
+<button class="cancelBtn" onclick="closeModal()">Cancel</button>
+</div>
+</div>
+
+<script>
+
+const ESP_IP = "http://192.168.4.1";
+const BACKEND_URL = window.location.origin + "/api";
+
+/* STORAGE */
+let vehicles = JSON.parse(localStorage.getItem("vehicles")) || {};
+let locked = JSON.parse(localStorage.getItem("locked")) || {};
+let logs = JSON.parse(localStorage.getItem("logs")) || {
+Location1: [],
+Location2: [],
+Location3: []
+};
+
+function saveAllData(){
+localStorage.setItem("vehicles", JSON.stringify(vehicles));
+localStorage.setItem("locked", JSON.stringify(locked));
+localStorage.setItem("logs", JSON.stringify(logs));
+}
+
+window.onload=function(){
+if(localStorage.getItem("loggedIn")==="true"){
+loginPage.style.display="none";
+mainApp.style.display="block";
+}
+updateVehicleList();
+updateLogs();
+}
+
+/* LOGIN */
+function login(){
+fetch(BACKEND_URL+"/login",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({user:username.value,pass:password.value})
+})
+.then(r=>r.json())
+.then(d=>{
+if(d.success){
+localStorage.setItem("loggedIn","true");
+location.reload();
+}else notify(d.error || "Invalid Login","#e74c3c");
+})
+.catch(()=>notify("Backend error","#f39c12"));
+}
+
+function logout(){
+localStorage.removeItem("loggedIn");
+location.reload();
+}
+
+function openSignup(){
+loginPage.style.display="none";
+signupPage.style.display="block";
+}
+
+function backToLogin(){
+signupPage.style.display="none";
+loginPage.style.display="block";
+}
+
+/* ✅ FIXED SIGNUP */
+function signup(){
+let user=newUser.value.trim();
+let pass=newPass.value.trim();
+
+if(!/^[A-Za-z]+$/.test(user)){
+notify("Username only alphabets","#f39c12"); return;
+}
+
+if(!/^[A-Za-z0-9]+$/.test(pass)){
+notify("Password letters+numbers","#f39c12"); return;
+}
+
+/* CHECK EXIST */
+fetch(BACKEND_URL+"/login",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({user,pass})
+})
+.then(r=>r.json())
+.then(check=>{
+if(check.success){
+notify("Username already exists","#e74c3c");
+}else{
+fetch(BACKEND_URL+"/signup",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({user,pass})
+})
+.then(r=>r.json())
+.then(d=>{
+if(d.success){
+notify("Account Created","#2ecc71");
+setTimeout(backToLogin,1500);
+}else{
+notify(d.error || "Signup failed","#e74c3c");
+}
+})
+.catch(()=>notify("Backend error","#f39c12"));
+}
+})
+.catch(()=>notify("Backend error","#f39c12"));
+}
+
+let areaMap={"City":"Location1","Tollgate":"Location2","Village":"Location3"};
+let mode="",lastCard="",lastTime=0;
+
+function openModal(m){
+mode=m;
+modal.style.display="block";
+modalTitle.innerText=(m==="lock")?"STOLEN VEHICLE":m.toUpperCase()+" VEHICLE";
+}
+
+function closeModal(){ modal.style.display="none"; }
+
+function saveData(){
+let card=cardId.value.toUpperCase().trim();
+let type=vehicleType.value;
+
+if(card===""){ notify("Scan RFID","#f39c12"); return; }
+
+if(mode==="add"){
+if(type===""){ notify("Select Type","#f39c12"); return; }
+if(vehicles[card]){ notify("Duplicate","#e74c3c"); return; }
+vehicles[card]=type;
+notify("Added","#2ecc71");
+}
+
+if(mode==="remove"){
+delete vehicles[card]; delete locked[card];
+notify("Removed","#2ecc71");
+}
+
+if(mode==="lock"){
+locked[card]=true;
+notify("Locked","#e74c3c");
+}
+
+saveAllData();
+updateVehicleList();
+closeModal();
+}
+
+function fetchCard(){
+fetch(ESP_IP+"/card")
+.then(r=>r.json())
+.then(data=>{
+if(!data || !data.card) return;
+
+let card=data.card.toUpperCase().trim();
+cardId.value=card;
+
+if(card===lastCard && Date.now()-lastTime<1000) return;
+lastCard=card; lastTime=Date.now();
+
+let now=new Date();
+let entry={
+card:card,
+type:vehicles[card]||"Unknown",
+date:now.toLocaleDateString(),
+time:now.toLocaleTimeString()
+};
+
+let area=areaMap[data.area]||"Location1";
+logs[area].push(entry);
+
+saveAllData();
+updateLogs();
+
+if(locked[card]) notify("🚨 STOLEN VEHICLE DETECTED!","red");
+});
+}
+
+function notify(msg,color){
+alertBox.innerText=msg;
+alertBox.style.background=color;
+alertBox.style.display="block";
+setTimeout(()=>alertBox.style.display="none",3000);
+}
+
+function updateLogs(){
+for(let a in logs){
+let div=document.getElementById(a);
+div.innerHTML="";
+logs[a].forEach(l=>{
+let el=document.createElement("div");
+el.innerHTML=l.card+" | "+l.type+" | "+(l.date||"")+" | "+l.time;
+if(locked[l.card]) el.classList.add("stolen");
+div.prepend(el);
+});
+}
+}
+
+function updateVehicleList(){
+vehicleList.innerHTML="";
+for(let c in vehicles){
+let el=document.createElement("div");
+el.innerHTML=c+" | "+vehicles[c];
+if(locked[c]) el.classList.add("stolen");
+vehicleList.appendChild(el);
+}
+}
+
+function exportExcel(){
+let csv="Area,Card,Type,Date,Time\n";
+for(let a in logs){
+logs[a].forEach(l=>{
+csv+=a+","+l.card+","+l.type+","+(l.date||"")+","+l.time+"\n";
+});
+}
+let blob=new Blob([csv]);
+let a=document.createElement("a");
+a.href=URL.createObjectURL(blob);
+a.download="vehicle_logs.csv";
+a.click();
+}
+
+cardId.addEventListener("keydown",e=>e.preventDefault());
+setInterval(fetchCard,500);
+
+</script>
+
+</body>
+</html>

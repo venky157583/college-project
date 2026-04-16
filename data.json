@@ -1,0 +1,43 @@
+{
+  "users": [
+    {
+      "user": "admin",
+      "pass": "1234"
+    },
+    {
+      "user": "dore",
+      "pass": "12345"
+    },
+    {
+      "user": "vel",
+      "pass": "12345"
+    },
+    {
+      "user": "venky",
+      "pass": "1234"
+    },
+    {
+      "user": "ven",
+      "pass": "123"
+    },
+    {
+      "user": "pawan",
+      "pass": "123"
+    },
+    {
+      "user": "sen",
+      "pass": "123"
+    },
+    {
+      "user": "thomsan",
+      "pass": "12345"
+    }
+  ],
+  "vehicles": {},
+  "locked": {},
+  "logs": {
+    "Location1": [],
+    "Location2": [],
+    "Location3": []
+  }
+}
