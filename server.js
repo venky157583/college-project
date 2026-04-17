@@ -9,10 +9,10 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
 
-// Temporary storage (demo purpose)
+// Temporary storage (RAM)
 let users = [];
 
-// SIGNUP API
+// SIGNUP
 app.post('/api/signup', (req, res) => {
     const { user, pass } = req.body;
 
@@ -20,7 +20,7 @@ app.post('/api/signup', (req, res) => {
         return res.status(400).json({ error: "Missing fields" });
     }
 
-    // Check duplicate username
+    // Duplicate check
     const exists = users.find(u => u.user === user);
     if (exists) {
         return res.status(400).json({ error: "Username already exists" });
@@ -28,10 +28,12 @@ app.post('/api/signup', (req, res) => {
 
     users.push({ user, pass });
 
+    console.log("Users:", users); // 👈 logs la paaka
+
     res.json({ success: true });
 });
 
-// LOGIN API
+// LOGIN
 app.post('/api/login', (req, res) => {
     const { user, pass } = req.body;
 
@@ -44,12 +46,17 @@ app.post('/api/login', (req, res) => {
     }
 });
 
-// ROOT (open HTML page)
+// 🔥 VIEW USERS (IMPORTANT)
+app.get('/api/users', (req, res) => {
+    res.json(users);
+});
+
+// ROOT
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'login support.html'));
 });
 
-// PORT (Render compatible)
+// PORT (Render ready)
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {
